@@ -19,6 +19,7 @@ valence REAL,
 tempo REAL,
 time_signature INTEGER,
 track_genre TEXT
+track_youtube_link TEXT
 )
 
 
