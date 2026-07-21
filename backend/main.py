@@ -1,3 +1,4 @@
+from anyio.streams import stapled
 import psycopg
 from psycopg.rows import dict_row
 
@@ -5,14 +6,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .song_model import SongUpdate
-
 import os
 import pickle 
 from pathlib import Path
 import joblib
+import pandas as pd 
+
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model.pkl"
+SONG_PATH = BASE_DIR / "songs.pkl"
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
@@ -98,18 +101,14 @@ def search_songs(q: str):
 def recommend(track_id: str):
     print(MODEL_PATH)
     model = joblib.load(MODEL_PATH)
-    song_features = get_song_by_id(track_id)
+    song_features = pd.DataFrame(get_song_by_id(track_id))
     feature_keys=['popularity','duration_ms','danceability','energy','key','loudness','mode','speechiness','acousticness','instrumentalness','liveness','valence','tempo','time_signature']
-    features = []
-    for fk in feature_keys:
-        features.append(song_features[0][fk])
-    print(features)
-    distances, indices = model.kneighbors([features])
-    print(indices)
-    return fetch_all(
-        "SELECT * FROM songs WHERE track_id IN (%s)",
-        (indices),
-    )
+    print(song_features[feature_keys])
+    distances, indices = model.kneighbors(song_features[feature_keys])
+    songs_table= joblib.load(SONG_PATH)
+    recommended_songs = songs_table.iloc[indices[0]]
+    return recommended_songs.to_dict(orient="records")
+
 
 @app.get("/predict-features/{track_id}")
 def predict_features(track_id: str):
